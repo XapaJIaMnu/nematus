@@ -1,6 +1,7 @@
 from util import load_dict
 from copy import deepcopy
 import numpy as np
+import os, sys
 
 class NgramMatrixFactory:
     """Assumes that it receives a batch of source files (and a vocab dictionary) and produces list of queries
@@ -30,8 +31,9 @@ class NgramMatrixFactory:
         self.reverse_target_dict[self.BoS] = "<s>"
         self.reverse_target_dict[self.EoS] = "</s>"
 
+
     ##Too slow, maybe NDarrays can speed it up but it seems to be wiser to just write out the ngrams
-    ##and have gLM/kenlm produce the numbers and then load them
+    ##and have gLM/kenlm produce the numbers and then load them. It's kept only as a reference, don't use it.
     def vocabSizeQueriesExpansion(self, queries):
         """Basically, replicate every single query target_vocab_size times and change the
         last word in the query to be from 0 to vocab_size"""
@@ -43,7 +45,7 @@ class NgramMatrixFactory:
         return vocabSizeQueries
         
 
-    def processBatch(self, target_sents):
+    def sents2ngrams(self, target_sents):
         """Processes a batch of target sentences to form ngram queries"""
         queries = []
         for sentence in target_sents:
@@ -86,3 +88,39 @@ class NgramMatrixFactory:
         for key in self.reverse_target_dict:
             dictfile.write(str(key) + '\t' + self.reverse_target_dict[key] + "\n")
         dictfile.close()
+
+    def initGLM(self, path_to_gLM_module, path_to_LM, path_to_vocab, gpuMemoryUse, gpuDeviceID = 0):
+        """This would init the gLM C object"""
+        cmd_folder = os.path.realpath(os.path.abspath(path_to_gLM_module))
+        if cmd_folder not in sys.path:
+            sys.path.append(cmd_folder)
+        import libngrams_nematus
+        self.gLM = libngrams_nematus.NematusLM(path_to_LM, path_to_vocab, gpuMemoryUse, gpuDeviceID);
+
+    def getScoresForBatch(self, target_sents, tmp_file):
+        """Given a list of target sentences, returns an ndarray of all the queries"""
+        ngrams_batch = self.sents2ngrams(target_sents)
+        self.writeToDisk(ngrams_batch, tmp_file, True)
+        return self.gLM.processBatch(tmp_file);
+
+    #This is how we clear the cMemory taken by all existing ndarrays
+    def clearMemory(self):
+        """Calls a C function to clear the memory used from all arrays thus far"""
+        self.gLM.freeResultsMemory()
+
+if __name__ == '__main__':
+    #Test
+    from data_iterator import TextIterator
+    a = TextIterator("../../de_en_wmt16/dev.bpe.de", "../../de_en_wmt16/dev.bpe.en",\
+     ["../../de_en_wmt16/vocab.de.pkl"], "../../de_en_wmt16/vocab.en.pkl", 128, 100, -1, 30000)
+    _,target = a.next()
+    ngrams = NgramMatrixFactory("../../de_en_wmt16/vocab.en.pkl", 6, 30000)
+    ngrams.dumpVocab("/tmp/dictfile") 
+    ngrams.initGLM('/home/dheart/uni_stuff/phd_2/gLM/release_build/lib', \
+        '/home/dheart/uni_stuff/phd_2/dl4mt-tutorial/de_en_wmt16/bpe_sents_4.glm/',
+         '/tmp/dictfile', 2950, 0)
+    scores = ngrams.getScoresForBatch(target, '/tmp/tmpngrams')
+    #Don't forget to clear memory after use!
+
+
+    
