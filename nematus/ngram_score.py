@@ -13,13 +13,13 @@ class NgramMatrixFactory:
 
         # Due to not having proper BoS and EoS define them:
         self.BoS = 0
-        self.EoS = 0
+        self.EoS = 0 # EoS needs to be 0 because that's how nematus uses it, BoS can be anything,
+                     # we put it at the end of vocabulary
+                     # @TODO this might depend on the dictionary used, but worry about that later.
         if self.n_words_target != -1:
             self.BoS = self.n_words_target
-            self.EoS = self.n_words_target + 1 #@TODO do we need EoS here (</s>)
         else:
             self.BoS = len(target_dict)
-            self.EoS = len(target_dict) + 1 #@TODO do we need EoS here (</s>)
 
         # Limit the vocabulary if necessary.
         if self.n_words_target > 0:
@@ -46,16 +46,17 @@ class NgramMatrixFactory:
         
 
     def sents2ngrams(self, target_sents):
-        """Processes a batch of target sentences to form ngram queries"""
+        """Processes a batch of target sentences to form ngram queries
+        The input is from the prepare_data fn of the nmt module"""
         queries = []
-        for sentence in target_sents:
+        for sentence in target_sents.T: #
             for i in range(len(sentence)):
                 query = []
                 begin_num = i - self.ngram_order
 
                 #Case 1: Having to Pad the beginning with BoS tokes <s>
                 if begin_num < 0:
-                    for j in range(-begin_num - 1):   
+                    for j in range(-begin_num - 1):
                         query.append(self.BoS)
                     sent_idx = 0
                     while len(query) < self.ngram_order:
@@ -71,7 +72,7 @@ class NgramMatrixFactory:
         ngrams_file = open(fileToWrite, "w")
         for query in batch_queries:
             if reverse: #E.G. gLM prefers reversed queries
-                query.reverse()
+                query = query[::-1]
             sent = ""
             for num in query:
                 sent = sent + self.reverse_target_dict[num] + " "
@@ -111,15 +112,17 @@ class NgramMatrixFactory:
 if __name__ == '__main__':
     #Test
     from data_iterator import TextIterator
+    from nmt import prepare_data
     a = TextIterator("../../de_en_wmt16/dev.bpe.de", "../../de_en_wmt16/dev.bpe.en",\
      ["../../de_en_wmt16/vocab.de.pkl"], "../../de_en_wmt16/vocab.en.pkl", 128, 100, -1, 30000)
-    _,target = a.next()
+    source,target = a.next()
+    source_padded, source_mask, target_padded, target_mask = prepare_data(source, target)
     ngrams = NgramMatrixFactory("../../de_en_wmt16/vocab.en.pkl", 6, 30000)
     ngrams.dumpVocab("/tmp/dictfile") 
     ngrams.initGLM('/home/dheart/uni_stuff/phd_2/gLM/release_build/lib', \
         '/home/dheart/uni_stuff/phd_2/dl4mt-tutorial/de_en_wmt16/bpe_sents_4.glm/',
-         '/tmp/dictfile', 2950, 0)
-    scores = ngrams.getScoresForBatch(target, '/tmp/tmpngrams')
+         '/tmp/dictfile', 2900, 0)
+    scores = ngrams.getScoresForBatch(target_padded, '/tmp/tmpngrams')
     #Don't forget to clear memory after use!
 
 
