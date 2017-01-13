@@ -36,9 +36,12 @@ from optimizers import *
 
 from domain_interpolation_data_iterator import DomainInterpolatorTextIterator
 
+# Score with ngram language mode:
+from ngram_score import NgramMatrixFactory
+
 # batch preparation
 def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
-                 n_words=30000):
+                 n_words=30000, ngrams_engine=None):
     # x: a list of sentences
     lengths_x = [len(s) for s in seqs_x]
     lengths_y = [len(s) for s in seqs_y]
@@ -77,7 +80,17 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
         y[:lengths_y[idx], idx] = s_y
         y_mask[:lengths_y[idx]+1, idx] = 1.
 
-    return x, x_mask, y, y_mask
+
+    target_ngram_scores = None    
+
+    if ngrams_engine is not None:
+        target_ngram_scores = ngrams_engine.getScoresForBatch(y, '/tmp/tmpngrams')
+
+    #For now discard scores, just test that compilation is working:
+    target_ngram_scores=None
+    ngrams_engine.clearMemory()
+
+    return x, x_mask, y, y_mask, target_ngram_scores
 
 
 # initialize all parameters
@@ -627,9 +640,9 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
         n_done += len(x)
 
-        x, x_mask, y, y_mask = prepare_data(x, y,
-                                            n_words_src=options['n_words_src'],
-                                            n_words=options['n_words'])
+        x, x_mask, y, y_mask, target_ngram_scores = prepare_data(x, y,
+                                                    n_words_src=options['n_words_src'],
+                                                    n_words=options['n_words'], ngrams_engine=options['ngrams_engine'])
 
         ### in optional save weights mode.
         if alignweights:
@@ -707,6 +720,7 @@ def train(dim_word=100,  # word vector dimensionality
           domain_interpolation_indomain_datasets=['indomain.en', 'indomain.fr'],
           maxibatch_size=20, #How many minibatches to load at one time
           model_version=0.1, #store version used for training for compatibility
+          #use_ngram_scoring=True, #Add a ngram language model interpolation
     ):
 
     # Model options
@@ -778,6 +792,22 @@ def train(dim_word=100,  # word vector dimensionality
         valid = None
 
     comp_start = time.time()
+
+    #Initialize ngrams engine:
+    print("Creating ngram scoring engine using gLM...")
+
+    #@TODO all of those should be variables
+    NGRAM_ORDER = 6 #@TODO put in variable
+    DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
+    GLM_LIB_LOCATION ='/home/dheart/uni_stuff/phd_2/gLM/release_build/lib'
+    NGRAM_LM_LOCATION = '/home/dheart/uni_stuff/phd_2/dl4mt-tutorial/de_en_wmt16/bpe_sents_4.glm/'
+    GPU_MEMORY_USAGE = 2900
+    GPU_DEVICE_ID = 0
+
+    ngrams_engine = NgramMatrixFactory(dictionaries[1], NGRAM_ORDER, n_words)
+    ngrams_engine.dumpVocab(DICT_TMP_FILE)  
+    ngrams_engine.initGLM(GLM_LIB_LOCATION, NGRAM_LM_LOCATION, DICT_TMP_FILE, GPU_MEMORY_USAGE, GPU_DEVICE_ID)
+    model_options['ngrams_engine'] = ngrams_engine
 
     print 'Building model'
     params = init_params(model_options)
@@ -914,9 +944,9 @@ def train(dim_word=100,  # word vector dimensionality
                 sys.stderr.write('Error: mismatch between number of factors in settings ({0}), and number in training corpus ({1})\n'.format(factors, len(x[0][0])))
                 sys.exit(1)
 
-            x, x_mask, y, y_mask = prepare_data(x, y, maxlen=maxlen,
-                                                n_words_src=n_words_src,
-                                                n_words=n_words)
+            x, x_mask, y, y_mask, target_ngrams_scores = prepare_data(x, y, maxlen=maxlen,
+                                                        n_words_src=n_words_src,
+                                                        n_words=n_words, ngrams_engine=ngrams_engine)
 
             if x is None:
                 print 'Minibatch with zero sample under length ', maxlen
