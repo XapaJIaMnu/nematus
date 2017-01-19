@@ -642,7 +642,7 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
         x, x_mask, y, y_mask, target_ngram_scores = prepare_data(x, y,
                                                     n_words_src=options['n_words_src'],
-                                                    n_words=options['n_words'], ngrams_engine=options['ngrams_engine'])
+                                                    n_words=options['n_words'], ngrams_engine=None)
 
         ### in optional save weights mode.
         if alignweights:
@@ -799,15 +799,15 @@ def train(dim_word=100,  # word vector dimensionality
     #@TODO all of those should be variables
     NGRAM_ORDER = 6 #@TODO put in variable
     DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
-    GLM_LIB_LOCATION ='/home/dheart/uni_stuff/phd_2/gLM/release_build/lib'
-    NGRAM_LM_LOCATION = '/home/dheart/uni_stuff/phd_2/dl4mt-tutorial/de_en_wmt16/bpe_sents_4.glm/'
-    GPU_MEMORY_USAGE = 2900
+    GLM_LIB_LOCATION ='/home/s1031254/gLM/release_build/lib'
+    NGRAM_LM_LOCATION = '/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/'
+    GPU_MEMORY_USAGE = 900
     GPU_DEVICE_ID = 0
 
     ngrams_engine = NgramMatrixFactory(dictionaries[1], NGRAM_ORDER, n_words)
     ngrams_engine.dumpVocab(DICT_TMP_FILE)  
     ngrams_engine.initGLM(GLM_LIB_LOCATION, NGRAM_LM_LOCATION, DICT_TMP_FILE, GPU_MEMORY_USAGE, GPU_DEVICE_ID)
-    model_options['ngrams_engine'] = ngrams_engine
+    #model_options['ngrams_engine'] = ngrams_engine
 
     print 'Building model'
     params = init_params(model_options)
