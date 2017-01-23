@@ -39,6 +39,9 @@ from domain_interpolation_data_iterator import DomainInterpolatorTextIterator
 # Score with ngram language mode:
 from ngram_score import NgramMatrixFactory
 
+#debug
+theano.config.compute_test_value = 'warn'
+
 # batch preparation
 def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
                  n_words=30000, ngrams_engine=None):
@@ -250,6 +253,11 @@ def build_model(tparams, options):
     x, ctx = build_encoder(tparams, options, trng, use_noise, x_mask, sampling=False)
     n_samples = x.shape[2]
     n_timesteps_trg = y.shape[0]
+    
+    #ngrams engine @TODO, find the correct values for the test_value.
+    ngram_scores = tensor.matrix('ngram_scores', dtype='float32')
+    sent_length = 40
+    ngram_scores.test_value = numpy.ones(shape=(options['n_words'],sent_length, options['batch_size'])).astype('float32')
 
     if options['use_dropout']:
         retain_probability_emb = 1-options['dropout_embedding']
@@ -338,6 +346,8 @@ def build_model(tparams, options):
     logit_shp = logit.shape
     probs = tensor.nnet.softmax(logit.reshape([logit_shp[0]*logit_shp[1],
                                                logit_shp[2]]))
+    print("Debug dimensions:")
+    #print(theano.tensor.ones_like(probs).shape.eval())
 
     # cost
     y_flat = y.flatten()
