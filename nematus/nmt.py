@@ -126,6 +126,10 @@ def init_params(options):
                                               nin=options['dim_word'],
                                               dim=options['dim'],
                                               dimctx=ctxdim)
+    
+    # optional: ngram interpolation weight
+    params['ngram_weight'] = numpy.float32(0.5)
+    
     # readout
     params = get_layer_param('ff')(options, params, prefix='ff_logit_lstm',
                                 nin=options['dim'], nout=options['dim_word'],
@@ -256,8 +260,7 @@ def build_model(tparams, options):
     
     #ngrams engine @TODO, find the correct values for the test_value.
     ngram_scores = tensor.matrix('ngram_scores', dtype='float32')
-    sent_length = 40
-    ngram_scores.test_value = numpy.ones(shape=(options['n_words'],sent_length, options['batch_size'])).astype('float32')
+    ngram_scores.tag.test_value = numpy.ones(shape=(8*10, options['n_words'])).astype('float32')
 
     if options['use_dropout']:
         retain_probability_emb = 1-options['dropout_embedding']
@@ -347,7 +350,13 @@ def build_model(tparams, options):
     probs = tensor.nnet.softmax(logit.reshape([logit_shp[0]*logit_shp[1],
                                                logit_shp[2]]))
     print("Debug dimensions:")
-    #print(theano.tensor.ones_like(probs).shape.eval())
+    print(probs.tag.test_value.shape)
+    ngram_interpolation = True
+    print(probs.tag.test_value.shape)
+    if ngram_interpolation:
+        probs = tensor.nnet.softmax(probs*ngram_scores*tparams['ngram_weight'])
+    print("Debug dimensions2:")
+    print(probs.tag.test_value.shape)
 
     # cost
     y_flat = y.flatten()
@@ -358,7 +367,7 @@ def build_model(tparams, options):
 
     #print "Print out in build_model()"
     #print opt_ret
-    return trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost
+    return trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost, ngram_scores
 
 
 # build a sampler
@@ -655,12 +664,16 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
                                                     n_words=options['n_words'], ngrams_engine=None)
 
         ### in optional save weights mode.
+        f_log_probs_args = (x, x_mask, y, y_mask)
+        if ngrams_engine is not None:
+            f_log_probs_args = (x, x_mask, y, y_mask, target_ngram_scores)
+            
         if alignweights:
-            pprobs, attention = f_log_probs(x, x_mask, y, y_mask)
+            pprobs, attention = f_log_probs(*f_log_probs_args)
             for jdata in get_alignments(attention, x_mask, y_mask):
                 alignments_json.append(jdata)
         else:
-            pprobs = f_log_probs(x, x_mask, y, y_mask)
+            pprobs = f_log_probs(*f_log_probs_args)
 
         # normalize scores according to output length
         if normalize:
@@ -834,10 +847,15 @@ def train(dim_word=100,  # word vector dimensionality
     trng, use_noise, \
         x, x_mask, y, y_mask, \
         opt_ret, \
-        cost = \
+        cost, ngram_scores = \
         build_model(tparams, model_options)
 
-    inps = [x, x_mask, y, y_mask]
+    ngram_interpolation = True
+    inps = []
+    if ngram_interpolation:
+        inps = [x, x_mask, y, y_mask, ngram_scores]
+    else:
+        inps = [x, x_mask, y, y_mask]
 
     if validFreq or sampleFreq:
         print 'Building sampler'
@@ -961,7 +979,7 @@ def train(dim_word=100,  # word vector dimensionality
                 sys.stderr.write('Error: mismatch between number of factors in settings ({0}), and number in training corpus ({1})\n'.format(factors, len(x[0][0])))
                 sys.exit(1)
 
-            x, x_mask, y, y_mask, target_ngrams_scores = prepare_data(x, y, maxlen=maxlen,
+            x, x_mask, y, y_mask, target_ngram_scores = prepare_data(x, y, maxlen=maxlen,
                                                         n_words_src=n_words_src,
                                                         n_words=n_words, ngrams_engine=ngrams_engine)
 
@@ -969,9 +987,12 @@ def train(dim_word=100,  # word vector dimensionality
                 print 'Minibatch with zero sample under length ', maxlen
                 uidx -= 1
                 continue
-
+            
             # compute cost, grads and copy grads to shared variables
-            cost = f_grad_shared(x, x_mask, y, y_mask)
+            f_grad_shared_args = (x, x_mask, y, y_mask)
+            if ngrams_engine is not None:
+                f_grad_shared_args = (x, x_mask, y, y_mask, target_ngram_scores)
+            cost = f_grad_shared(*f_grad_shared_args)
 
             # do the update on parameters
             f_update(lrate)
