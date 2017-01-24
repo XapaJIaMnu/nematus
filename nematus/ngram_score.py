@@ -9,8 +9,14 @@ class NgramMatrixFactory:
     def __init__(self, target_dict, ngram_order, n_words_target=-1):
         self.target_dict = load_dict(target_dict)
         self.ngram_order = ngram_order
-        self.n_words_target = n_words_target
-
+        if n_words_target == -1:
+            self.n_words_target = len(self.target_dict)
+        else:
+            self.n_words_target = n_words_target
+        #Those vary with each batch sent
+        self.sentence_length = 0
+        self.batch_size = 0
+        
         # Due to not having proper BoS and EoS define them:
         self.BoS = 0
         self.EoS = 0 # EoS needs to be 0 because that's how nematus uses it, BoS can be anything,
@@ -49,6 +55,10 @@ class NgramMatrixFactory:
         """Processes a batch of target sentences to form ngram queries
         The input is from the prepare_data fn of the nmt module"""
         queries = []
+        self.batch_size = len(target_sents.T)
+        self.sentence_length = len(target_sents)
+        print("Batch size: " + str(self.batch_size))
+        print("Sentence sentence_length: " + str(self.sentence_length))
         for sentence in target_sents.T: #
             for i in range(len(sentence)):
                 query = []
@@ -102,7 +112,7 @@ class NgramMatrixFactory:
         """Given a list of target sentences, returns an ndarray of all the queries"""
         ngrams_batch = self.sents2ngrams(target_sents)
         self.writeToDisk(ngrams_batch, tmp_file, True)
-        return self.gLM.processBatch(tmp_file);
+        return self.gLM.processBatch(tmp_file, self.n_words_target, self.sentence_length, self.batch_size);
 
     #This is how we clear the cMemory taken by all existing ndarrays
     def clearMemory(self):
@@ -116,7 +126,7 @@ if __name__ == '__main__':
     a = TextIterator("../../de_en_wmt16/dev.bpe.de", "../../de_en_wmt16/dev.bpe.en",\
      ["../../de_en_wmt16/vocab.de.pkl"], "../../de_en_wmt16/vocab.en.pkl", 128, 100, -1, 30000)
     source,target = a.next()
-    source_padded, source_mask, target_padded, target_mask = prepare_data(source, target)
+    source_padded, source_mask, target_padded, target_mask, _ = prepare_data(source, target)
     ngrams = NgramMatrixFactory("../../de_en_wmt16/vocab.en.pkl", 6, 30000)
     ngrams.dumpVocab("/tmp/dictfile") 
     ngrams.initGLM('/home/dheart/uni_stuff/phd_2/gLM/release_build/lib', \
