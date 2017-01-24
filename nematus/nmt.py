@@ -41,6 +41,8 @@ from ngram_score import NgramMatrixFactory
 
 #debug
 theano.config.compute_test_value = 'warn'
+print(theano.config.floatX)
+theano.config.warn_float64 = 'raise'
 
 # batch preparation
 def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
@@ -87,11 +89,9 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
     target_ngram_scores = None    
 
     if ngrams_engine is not None:
+        ngrams_engine.clearMemory() #Clear the memory used by the previous batch.
         target_ngram_scores = ngrams_engine.getScoresForBatch(y, '/tmp/tmpngrams')
-
-    #For now discard scores, just test that compilation is working:
-    target_ngram_scores=None
-    ngrams_engine.clearMemory()
+        target_ngram_scores = target_ngram_scores.reshape((len(y_mask),n_words))
 
     return x, x_mask, y, y_mask, target_ngram_scores
 
@@ -128,7 +128,8 @@ def init_params(options):
                                               dimctx=ctxdim)
     
     # optional: ngram interpolation weight
-    params['ngram_weight'] = numpy.float32(0.5)
+    if options['ngrams_engine']:
+        params['ngram_weight'] = numpy.float32(0.5)
     
     # readout
     params = get_layer_param('ff')(options, params, prefix='ff_logit_lstm',
@@ -645,7 +646,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
 
 # calculate the log probablities on a given corpus using translation model
-def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, normalize=False, alignweights=False):
+def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, normalize=False, alignweights=False, ngrams_engine=None):
     probs = []
     n_done = 0
 
@@ -661,7 +662,7 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
         x, x_mask, y, y_mask, target_ngram_scores = prepare_data(x, y,
                                                     n_words_src=options['n_words_src'],
-                                                    n_words=options['n_words'], ngrams_engine=None)
+                                                    n_words=options['n_words'], ngrams_engine=ngrams_engine)
 
         ### in optional save weights mode.
         f_log_probs_args = (x, x_mask, y, y_mask)
@@ -710,7 +711,7 @@ def train(dim_word=100,  # word vector dimensionality
           n_words_src=None,  # source vocabulary size
           n_words=None,  # target vocabulary size
           maxlen=100,  # maximum length of the description
-          optimizer='rmsprop',
+          optimizer='adam',
           batch_size=16,
           valid_batch_size=16,
           saveto='model.npz',
@@ -743,7 +744,7 @@ def train(dim_word=100,  # word vector dimensionality
           domain_interpolation_indomain_datasets=['indomain.en', 'indomain.fr'],
           maxibatch_size=20, #How many minibatches to load at one time
           model_version=0.1, #store version used for training for compatibility
-          #use_ngram_scoring=True, #Add a ngram language model interpolation
+          use_ngram_scoring=True, #Add a ngram language model interpolation
     ):
 
     # Model options
@@ -816,21 +817,23 @@ def train(dim_word=100,  # word vector dimensionality
 
     comp_start = time.time()
 
-    #Initialize ngrams engine:
-    print("Creating ngram scoring engine using gLM...")
-
+    #Initialize ngrams engine
     #@TODO all of those should be variables
-    NGRAM_ORDER = 6 #@TODO put in variable
-    DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
-    GLM_LIB_LOCATION ='/home/s1031254/gLM/release_build/lib'
-    NGRAM_LM_LOCATION = '/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/'
-    GPU_MEMORY_USAGE = 900
-    GPU_DEVICE_ID = 0
+    ngrams_engine = None
+    model_options['ngrams_engine'] = use_ngram_scoring
+    if use_ngram_scoring:
+        print("Creating ngram scoring engine using gLM...")
+        NGRAM_ORDER = 6 #@TODO put in variable
+        DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
+        GLM_LIB_LOCATION ='/home/s1031254/gLM/release_build/lib'
+        NGRAM_LM_LOCATION = '/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/'
+        GPU_MEMORY_USAGE = 900
+        GPU_DEVICE_ID = 0
 
-    ngrams_engine = NgramMatrixFactory(dictionaries[1], NGRAM_ORDER, n_words)
-    ngrams_engine.dumpVocab(DICT_TMP_FILE)  
-    ngrams_engine.initGLM(GLM_LIB_LOCATION, NGRAM_LM_LOCATION, DICT_TMP_FILE, GPU_MEMORY_USAGE, GPU_DEVICE_ID)
-    #model_options['ngrams_engine'] = ngrams_engine
+        ngrams_engine = NgramMatrixFactory(dictionaries[1], NGRAM_ORDER, n_words)
+        ngrams_engine.dumpVocab(DICT_TMP_FILE)  
+        ngrams_engine.initGLM(GLM_LIB_LOCATION, NGRAM_LM_LOCATION, DICT_TMP_FILE, GPU_MEMORY_USAGE, GPU_DEVICE_ID)
+    
 
     print 'Building model'
     params = init_params(model_options)
@@ -1099,7 +1102,7 @@ def train(dim_word=100,  # word vector dimensionality
             if valid and validFreq and numpy.mod(uidx, validFreq) == 0:
                 use_noise.set_value(0.)
                 valid_errs, alignment = pred_probs(f_log_probs, prepare_data,
-                                        model_options, valid)
+                                        model_options, valid, ngrams_engine)
                 valid_err = valid_errs.mean()
                 history_errs.append(valid_err)
 
@@ -1164,7 +1167,7 @@ def train(dim_word=100,  # word vector dimensionality
     if valid:
         use_noise.set_value(0.)
         valid_errs, alignment = pred_probs(f_log_probs, prepare_data,
-                                        model_options, valid)
+                                        model_options, valid, ngrams_engine)
         valid_err = valid_errs.mean()
 
         print 'Valid ', valid_err
