@@ -40,9 +40,8 @@ from domain_interpolation_data_iterator import DomainInterpolatorTextIterator
 from ngram_score import NgramMatrixFactory
 
 #debug
-theano.config.compute_test_value = 'warn'
-print(theano.config.floatX)
-theano.config.warn_float64 = 'raise'
+#theano.config.compute_test_value = 'warn'
+#theano.config.warn_float64 = 'raise'
 
 # batch preparation
 def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
@@ -91,7 +90,6 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
     if ngrams_engine is not None:
         ngrams_engine.clearMemory() #Clear the memory used by the previous batch.
         target_ngram_scores = ngrams_engine.getScoresForBatch(y, '/tmp/tmpngrams')
-        target_ngram_scores = target_ngram_scores.reshape((len(y_mask),n_words))
 
     return x, x_mask, y, y_mask, target_ngram_scores
 
@@ -350,14 +348,15 @@ def build_model(tparams, options):
     logit_shp = logit.shape
     probs = tensor.nnet.softmax(logit.reshape([logit_shp[0]*logit_shp[1],
                                                logit_shp[2]]))
-    print("Debug dimensions:")
-    print(probs.tag.test_value.shape)
+    #print("Debug dimensions:")
+    #print(probs.tag.test_value.shape)
     ngram_interpolation = True
-    print(probs.tag.test_value.shape)
+    #print(probs.tag.test_value.shape)
+    #@TODO. ngram_scores are log probs. Also what sort of interpolation do i use?
     if ngram_interpolation:
         probs = tensor.nnet.softmax(probs*ngram_scores*tparams['ngram_weight'])
-    print("Debug dimensions2:")
-    print(probs.tag.test_value.shape)
+    #print("Debug dimensions2:")
+    #print(probs.tag.test_value.shape)
 
     # cost
     y_flat = y.flatten()
