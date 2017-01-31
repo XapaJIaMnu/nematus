@@ -350,11 +350,10 @@ def build_model(tparams, options):
                                                logit_shp[2]]))
     #print("Debug dimensions:")
     #print(probs.tag.test_value.shape)
-    ngram_interpolation = True
     #print(probs.tag.test_value.shape)
     #@TODO. ngram_scores are log probs. Also what sort of interpolation do i use?
-    if ngram_interpolation:
-        probs = tensor.nnet.softmax(probs*ngram_scores*tparams['ngram_weight'])
+    if 'ngram_weight' in tparams:
+        probs = tensor.nnet.softmax(probs*tensor.exp(ngram_scores)*tparams['ngram_weight'])
     #print("Debug dimensions2:")
     #print(probs.tag.test_value.shape)
 
@@ -744,6 +743,11 @@ def train(dim_word=100,  # word vector dimensionality
           maxibatch_size=20, #How many minibatches to load at one time
           model_version=0.1, #store version used for training for compatibility
           use_ngram_scoring=True, #Add a ngram language model interpolation
+          ngram_order = 6,
+          glm_lib_location ='/home/s1031254/gLM/release_build/lib',
+          ngram_lm_location = '/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/',
+          ngram_lm_gpu_memory_usage = 900, #Memory usage for the ngram LM in MB
+          ngram_lm_gpu_device_id = 0,
     ):
 
     # Model options
@@ -822,16 +826,10 @@ def train(dim_word=100,  # word vector dimensionality
     model_options['ngrams_engine'] = use_ngram_scoring
     if use_ngram_scoring:
         print("Creating ngram scoring engine using gLM...")
-        NGRAM_ORDER = 6 #@TODO put in variable
         DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
-        GLM_LIB_LOCATION ='/home/s1031254/gLM/release_build/lib'
-        NGRAM_LM_LOCATION = '/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/'
-        GPU_MEMORY_USAGE = 900
-        GPU_DEVICE_ID = 0
-
-        ngrams_engine = NgramMatrixFactory(dictionaries[1], NGRAM_ORDER, n_words)
+        ngrams_engine = NgramMatrixFactory(dictionaries[1], ngram_order, n_words)
         ngrams_engine.dumpVocab(DICT_TMP_FILE)  
-        ngrams_engine.initGLM(GLM_LIB_LOCATION, NGRAM_LM_LOCATION, DICT_TMP_FILE, GPU_MEMORY_USAGE, GPU_DEVICE_ID)
+        ngrams_engine.initGLM(glm_lib_location, ngram_lm_location, DICT_TMP_FILE, ngram_lm_gpu_memory_usage, ngram_lm_gpu_device_id)
     
 
     print 'Building model'
@@ -1264,6 +1262,20 @@ if __name__ == '__main__':
                          help='do not sort sentences in maxibatch by length')
     training.add_argument('--maxibatch_size', type=int, default=20, metavar='INT',
                          help='size of maxibatch (number of minibatches that are sorted by length) (default: %(default)s)')
+    training.add_argument('--use_ngram_scoring', type=bool, action='store_true',
+                         help='enable ngram scoring of the softmax layer.')
+    training.add_argument('--ngram_order', type=int, default=6, metavar='INT',
+                         help='ngram order of ngram scoring engine. Only effective if use_ngram_scoring is set')
+    training.add_argument('--glm_lib_location', type=str, default='/home/s1031254/gLM/release_build/lib', metavar='PATH',
+                         help='path to the gLM python library.')
+    training.add_argument('--ngram_lm_location', type=str, default='/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/', metavar='PATH',
+                         help='location of the ngram language model.')
+    training.add_argument('--ngram_lm_gpu_memory_usage', type=int, default=900, metavar='INT',
+                         help='memory usage allowance (in MB) of the GPU ngram language model')
+    training.add_argument('--ngram_lm_gpu_device_id', type=int, default=0, metavar='INT',
+                         help='GPU device to be used for the ngram language model only.')
+
+
     finetune = training.add_mutually_exclusive_group()
     finetune.add_argument('--finetune', action="store_true",
                         help="train with fixed embedding layer")
