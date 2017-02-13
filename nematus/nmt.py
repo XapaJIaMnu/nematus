@@ -1262,7 +1262,7 @@ if __name__ == '__main__':
                          help='do not sort sentences in maxibatch by length')
     training.add_argument('--maxibatch_size', type=int, default=20, metavar='INT',
                          help='size of maxibatch (number of minibatches that are sorted by length) (default: %(default)s)')
-    training.add_argument('--use_ngram_scoring', type=bool, action='store_true',
+    training.add_argument('--use_ngram_scoring', action='store_true',
                          help='enable ngram scoring of the softmax layer.')
     training.add_argument('--ngram_order', type=int, default=6, metavar='INT',
                          help='ngram order of ngram scoring engine. Only effective if use_ngram_scoring is set')
