@@ -16,10 +16,11 @@ from theano_util import *
 # f_grad_shared, f_update = name(hyperp, tparams, grads, inputs (list), cost)
 # with profile as an optional argument
 
-def adam(lr, tparams, grads, inp, cost, beta1=0.9, beta2=0.999, e=1e-8, optimizer_params={}, profile=False):
+def adam(lr, tparams, grads, inp, cost, beta1=numpy.float32(0.9), beta2=numpy.float32(0.999), e=numpy.float32(1e-8), optimizer_params={}, profile=False):
+
     PREFIX='adam_'
 
-    gshared = [theano.shared(p.get_value() * 0., name='%s_grad' % k)
+    gshared = [theano.shared(p.get_value() * numpy.float32(0.), name='%s_grad' % k)
                for k, p in tparams.iteritems()]
     gsup = [(gs, g) for gs, g in zip(gshared, grads)]
 
@@ -45,7 +46,7 @@ def adam(lr, tparams, grads, inp, cost, beta1=0.9, beta2=0.999, e=1e-8, optimize
         if m_name in optimizer_params:
             m_init = optimizer_params[m_name]
         else:
-            m_init = p.get_value() * 0.
+            m_init = p.get_value() * numpy.float32(0.)
         m = theano.shared(m_init, m_name)
         optimizer_tparams[m_name] = m
 
@@ -54,13 +55,13 @@ def adam(lr, tparams, grads, inp, cost, beta1=0.9, beta2=0.999, e=1e-8, optimize
         if v_name in optimizer_params:
             v_init = optimizer_params[v_name]
         else:
-            v_init = p.get_value() * 0.
+            v_init = p.get_value() * numpy.float32(0.)
         v = theano.shared(v_init, v_name)
         optimizer_tparams[v_name] = v
 
         # Define updates on shared vars
-        m_t = beta1 * m + (1. - beta1) * g
-        v_t = beta2 * v + (1. - beta2) * g**2
+        m_t = beta1 * m + (numpy.float32(1.) - beta1) * g
+        v_t = beta2 * v + (numpy.float32(1.) - beta2) * g**numpy.float32(2)
         step = lr_t * m_t / (tensor.sqrt(v_t) + e)
         p_t = p - step
         updates.append((m, m_t))
