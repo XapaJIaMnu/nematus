@@ -54,12 +54,13 @@ class NgramMatrixFactory:
     def sents2ngrams(self, target_sents):
         """Processes a batch of target sentences to form ngram queries
         The input is from the prepare_data fn of the nmt module"""
-        queries = []
+        sent_queries = []
         self.batch_size = len(target_sents.T)
         self.sentence_length = len(target_sents)
         print("Batch size: " + str(self.batch_size))
         print("Sentence sentence_length: " + str(self.sentence_length))
         for sentence in target_sents.T: #
+            queries = []
             for i in range(len(sentence)):
                 query = []
                 begin_num = i - self.ngram_order
@@ -76,18 +77,34 @@ class NgramMatrixFactory:
                     #Case 2: just have a sliding window of size self.ngram_order until the end of sentences
                     query = sentence[begin_num:i]
                 queries.append(query)
-        return queries
+            sent_queries.append(queries)
+        return sent_queries
 
-    def writeToDisk(self, batch_queries, fileToWrite, reverse=False):
+    #Nematus ngrams are expected to be ordered by word idx and not by sentence idx
+    def writeToDisk(self, batch_queries, fileToWrite, reverse=False, wordIndexed=False):
         ngrams_file = open(fileToWrite, "w")
-        for query in batch_queries:
-            if reverse: #E.G. gLM prefers reversed queries
-                query = query[::-1]
-            sent = ""
-            for num in query:
-                sent = sent + self.reverse_target_dict[num] + " "
-            sent = sent[:-1] #remove trailing space
-            ngrams_file.write(sent + '\n')
+
+        if wordIndexed:
+            for i in range(len(batch_queries[0])):
+                for sentence in batch_queries:
+                    query = sentence[i]
+                    if reverse:
+                        query = query[::-1]
+                    sent = ""
+                    for num in query:
+                        sent = sent + self.reverse_target_dict[num] + " "
+                    sent = sent[:-1] #remove trailing space
+                    ngrams_file.write(sent + '\n')
+        else:
+            for sentence in batch_queries:
+                for query in sentence:
+                    if reverse: #E.G. gLM prefers reversed queries
+                        query = query[::-1]
+                    sent = ""
+                    for num in query:
+                        sent = sent + self.reverse_target_dict[num] + " "
+                    sent = sent[:-1] #remove trailing space
+                    ngrams_file.write(sent + '\n')
         ngrams_file.close()
 
     def dumpVocab(self, fileToWrite):
@@ -106,13 +123,13 @@ class NgramMatrixFactory:
         if cmd_folder not in sys.path:
             sys.path.append(cmd_folder)
         import libngrams_nematus
-        self.gLM = libngrams_nematus.NematusLM(path_to_LM, path_to_vocab, gpuMemoryUse, gpuDeviceID);
+        self.gLM = libngrams_nematus.NematusLM(path_to_LM, path_to_vocab, gpuMemoryUse, gpuDeviceID)
 
     def getScoresForBatch(self, target_sents, tmp_file):
         """Given a list of target sentences, returns an ndarray of all the queries"""
         ngrams_batch = self.sents2ngrams(target_sents)
-        self.writeToDisk(ngrams_batch, tmp_file, True)
-        return self.gLM.processBatch(tmp_file, self.n_words_target, self.sentence_length, self.batch_size);
+        self.writeToDisk(ngrams_batch, tmp_file, True, True)
+        return self.gLM.processBatch(tmp_file, self.n_words_target, self.sentence_length, self.batch_size)
 
     #This is how we clear the cMemory taken by all existing ndarrays
     def clearMemory(self):
@@ -125,7 +142,7 @@ if __name__ == '__main__':
     from nmt import prepare_data
     a = TextIterator("../../de_en_wmt16/dev.bpe.de", "../../de_en_wmt16/dev.bpe.en",\
      ["../../de_en_wmt16/vocab.de.pkl"], "../../de_en_wmt16/vocab.en.pkl", 128, 100, -1, 30000)
-    source,target = a.next()
+    source, target = a.next()
     source_padded, source_mask, target_padded, target_mask, _ = prepare_data(source, target)
     ngrams = NgramMatrixFactory("../../de_en_wmt16/vocab.en.pkl", 6, 30000)
     ngrams.dumpVocab("/tmp/dictfile") 
