@@ -742,7 +742,7 @@ def train(dim_word=100,  # word vector dimensionality
           domain_interpolation_indomain_datasets=['indomain.en', 'indomain.fr'],
           maxibatch_size=20, #How many minibatches to load at one time
           model_version=0.1, #store version used for training for compatibility
-          use_ngram_scoring=True, #Add a ngram language model interpolation
+          use_ngram_scoring=False, #Add a ngram language model interpolation
           ngram_order = 6,
           glm_lib_location ='/home/s1031254/gLM/release_build/lib',
           ngram_lm_location = '/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/',
@@ -850,9 +850,8 @@ def train(dim_word=100,  # word vector dimensionality
         cost, ngram_scores = \
         build_model(tparams, model_options)
 
-    ngram_interpolation = True
     inps = []
-    if ngram_interpolation:
+    if use_ngram_scoring:
         inps = [x, x_mask, y, y_mask, ngram_scores]
     else:
         inps = [x, x_mask, y, y_mask]
