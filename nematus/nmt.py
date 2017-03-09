@@ -127,7 +127,7 @@ def init_params(options):
     
     # optional: ngram interpolation weight
     if options['ngrams_engine']:
-        params['ngram_weight'] = numpy.float32(0.5)
+        params['ngram_weight'] = numpy.float32(options['ngram_weight'])
     
     # readout
     params = get_layer_param('ff')(options, params, prefix='ff_logit_lstm',
@@ -743,6 +743,7 @@ def train(dim_word=100,  # word vector dimensionality
           maxibatch_size=20, #How many minibatches to load at one time
           model_version=0.1, #store version used for training for compatibility
           use_ngram_scoring=False, #Add a ngram language model interpolation
+          ngram_weight=0.05, #Initial weight for ngrams scoring
           ngram_order = 6,
           glm_lib_location ='/home/s1031254/gLM/release_build/lib',
           ngram_lm_location = '/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/',
@@ -824,6 +825,7 @@ def train(dim_word=100,  # word vector dimensionality
     #@TODO all of those should be variables
     ngrams_engine = None
     model_options['ngrams_engine'] = use_ngram_scoring
+    model_options['ngram_weight'] = ngram_weight # Initial weight provisioning
     if use_ngram_scoring:
         print("Creating ngram scoring engine using gLM...")
         DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
@@ -1098,7 +1100,7 @@ def train(dim_word=100,  # word vector dimensionality
             if valid and validFreq and numpy.mod(uidx, validFreq) == 0:
                 use_noise.set_value(0.)
                 valid_errs, alignment = pred_probs(f_log_probs, prepare_data,
-                                        model_options, valid, ngrams_engine)
+                                        model_options, valid, ngrams_engine=ngrams_engine)
                 valid_err = valid_errs.mean()
                 history_errs.append(valid_err)
 
@@ -1163,7 +1165,7 @@ def train(dim_word=100,  # word vector dimensionality
     if valid:
         use_noise.set_value(0.)
         valid_errs, alignment = pred_probs(f_log_probs, prepare_data,
-                                        model_options, valid, ngrams_engine)
+                                        model_options, valid, ngrams_engine=ngrams_engine)
         valid_err = valid_errs.mean()
 
         print 'Valid ', valid_err
@@ -1265,6 +1267,8 @@ if __name__ == '__main__':
                          help='enable ngram scoring of the softmax layer.')
     training.add_argument('--ngram_order', type=int, default=6, metavar='INT',
                          help='ngram order of ngram scoring engine. Only effective if use_ngram_scoring is set')
+    training.add_argument('--ngram_weight', type=float, default=0.05, metavar='FLOAT',
+                         help='Initial weight of the ngram language model scoring')
     training.add_argument('--glm_lib_location', type=str, default='/home/s1031254/gLM/release_build/lib', metavar='PATH',
                          help='path to the gLM python library.')
     training.add_argument('--ngram_lm_location', type=str, default='/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/', metavar='PATH',

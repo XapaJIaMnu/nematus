@@ -46,7 +46,7 @@ def load_params(path, params):
     pp = numpy.load(path)
     for kk, vv in params.iteritems():
         if kk not in pp:
-            warnings.warn('%s is not in the archive' % kk)
+            print('%s is not in the archive and its value will be taken from the default (or the one provided by command line)' % kk)
             continue
         params[kk] = pp[kk]
 
