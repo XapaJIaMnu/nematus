@@ -127,7 +127,9 @@ def init_params(options):
     
     # optional: ngram interpolation weight
     if options['ngrams_engine']:
-        params['ngram_weight'] = numpy.float32(options['ngram_weight'])
+        params['ngram_weight'] = numpy.ones(options['n_words'], dtype=numpy.float32)
+        for i in range(len(params['ngram_weight'])):
+            params['ngram_weight'][i] = i - len(params['ngram_weight'])
     
     # readout
     params = get_layer_param('ff')(options, params, prefix='ff_logit_lstm',
