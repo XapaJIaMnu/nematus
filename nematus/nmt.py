@@ -353,7 +353,8 @@ def build_model(tparams, options):
     #print(probs.tag.test_value.shape)
     #@TODO. ngram_scores are log probs. Also what sort of interpolation do i use?
     if 'ngram_weight' in tparams:
-        probs = tensor.nnet.softmax(probs + (tensor.exp(ngram_scores)*tparams['ngram_weight']))
+        beta = tensor.nnet.nnet.sigmoid(tparams['ngram_weight'])
+        probs = (1-beta)*probs + tensor.exp(ngram_scores)*beta
     #print("Debug dimensions2:")
     #print(probs.tag.test_value.shape)
 

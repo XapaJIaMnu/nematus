@@ -23,7 +23,7 @@ class NgramMatrixFactory:
                      # we put it at the end of vocabulary
                      # @TODO this might depend on the dictionary used, but worry about that later.
         if self.n_words_target != -1:
-            self.BoS = self.n_words_target
+            self.BoS = min(self.n_words_target, len(target_dict))
         else:
             self.BoS = len(target_dict)
 
