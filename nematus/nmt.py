@@ -129,7 +129,7 @@ def init_params(options):
     if options['ngrams_engine']:
         params['ngram_weight'] = numpy.ones(options['n_words'], dtype=numpy.float32)
         for i in range(len(params['ngram_weight'])):
-            params['ngram_weight'][i] = i - len(params['ngram_weight'])
+            params['ngram_weight'][i] = (i/2)/(len(params['ngram_weight']) + 1) + 0.0001
     
     # readout
     params = get_layer_param('ff')(options, params, prefix='ff_logit_lstm',
@@ -355,8 +355,7 @@ def build_model(tparams, options):
     #print(probs.tag.test_value.shape)
     #@TODO. ngram_scores are log probs. Also what sort of interpolation do i use?
     if 'ngram_weight' in tparams:
-        beta = tensor.nnet.nnet.sigmoid(tparams['ngram_weight'])
-        probs = (1-beta)*probs + tensor.exp(ngram_scores)*beta
+        probs = probs + tensor.exp(ngram_scores)*tparams['ngram_weight']
     #print("Debug dimensions2:")
     #print(probs.tag.test_value.shape)
 
