@@ -67,7 +67,7 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
         seqs_y = new_seqs_y
 
         if len(lengths_x) < 1 or len(lengths_y) < 1:
-            return None, None, None, None
+            return None, None, None, None, None
 
     n_samples = len(seqs_x)
     n_factors = len(seqs_x[0][0])
