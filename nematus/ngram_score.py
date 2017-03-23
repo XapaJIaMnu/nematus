@@ -37,6 +37,11 @@ class NgramMatrixFactory:
         self.reverse_target_dict[self.BoS] = "<s>"
         self.reverse_target_dict[self.EoS] = "</s>"
 
+        self.debug = False
+
+    def setDebug(self):
+        """Enables debug output to true"""
+        self.debug = True
 
     ##Too slow, maybe NDarrays can speed it up but it seems to be wiser to just write out the ngrams
     ##and have gLM/kenlm produce the numbers and then load them. It's kept only as a reference, don't use it.
@@ -57,8 +62,9 @@ class NgramMatrixFactory:
         sent_queries = []
         self.batch_size = len(target_sents.T)
         self.sentence_length = len(target_sents)
-        print("Batch size: " + str(self.batch_size))
-        print("Sentence sentence_length: " + str(self.sentence_length))
+        if self.debug:
+            print("Batch size: " + str(self.batch_size))
+            print("Sentence sentence_length: " + str(self.sentence_length))
         for sentence in target_sents.T: #
             queries = []
             for i in range(len(sentence)):
@@ -151,6 +157,3 @@ if __name__ == '__main__':
          '/tmp/dictfile', 2900, 0)
     scores = ngrams.getScoresForBatch(target_padded, '/tmp/tmpngrams')
     #Don't forget to clear memory after use!
-
-
-    
