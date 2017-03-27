@@ -460,13 +460,17 @@ def build_sampler(tparams, options, use_noise, trng, return_alignment=False):
     # compute the softmax probability
     next_probs = tensor.nnet.softmax(logit)
 
+    if options['ngrams_engine'] and 'ngram_weight' in tparams:
+        beta = tensor.nnet.nnet.sigmoid(tparams['ngram_weight'])
+        next_probs = (1-beta)*next_probs + ngram_scores*beta
+
     # sample from softmax distribution to get the sample
     next_sample = trng.multinomial(pvals=next_probs).argmax(1)
 
     # compile a function to do the whole thing above, next word probability,
     # sampled word for the next target, next hidden state to be used
     print >>sys.stderr, 'Building f_next..',
-    inps = [y, ctx, init_state]
+    inps = [y, ctx, init_state, ngram_scores]
     outs = [next_probs, next_sample, next_state]
 
     if return_alignment:
@@ -481,7 +485,7 @@ def build_sampler(tparams, options, use_noise, trng, return_alignment=False):
 # this function iteratively calls f_init and f_next functions.
 def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                stochastic=True, argmax=False, return_alignment=False, suppress_unk=False,
-               return_hyp_graph=False):
+               return_hyp_graph=False, ngrams_engine=None):
 
     # k is the beam size we have
     if k > 1:
@@ -526,8 +530,12 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     # x is a sequence of word ids followed by 0, eos id
     for ii in xrange(maxlen):
         for i in xrange(num_models):
+            target_ngram_scores = None
+            if ngrams_engine is not None:
+                ngrams_engine.clearMemory() #Clear the memory used by the previous batch.
+                target_ngram_scores = ngrams_engine.getScoresForBatch(hyp_samples, '/tmp/tmpngrams')
             ctx = numpy.tile(ctx0[i], [live_k, 1])
-            inps = [next_w, ctx, next_state[i]]
+            inps = [next_w, ctx, next_state[i], target_ngram_scores]
             ret = f_next[i](*inps)
             # dimension of dec_alpha (k-beam-size, number-of-input-hidden-units)
             next_p[i], next_w_tmp, next_state[i] = ret[0], ret[1], ret[2]
