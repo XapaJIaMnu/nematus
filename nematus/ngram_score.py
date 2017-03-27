@@ -137,6 +137,32 @@ class NgramMatrixFactory:
         self.writeToDisk(ngrams_batch, tmp_file, True, True)
         return self.gLM.processBatch(tmp_file, self.n_words_target, self.sentence_length, self.batch_size)
 
+    def getScoresForNgrams(self, beams, tmp_file):
+        """We get a beams of translated up to this moment words and we are figuring out what the next one should be.
+        All we really need to do at this point is take the last n-1 words (reversed) and pad them if necessary. Since our LM
+        code expects n words, we should put the nth word to be anything, because we'd get all possible vocab items."""
+        tmpfile = open(tmp_file, "w")
+        nonempty_beams = 0
+        for beam in beams:
+            if beam == []:
+                continue
+            nonempty_beams = nonempty_beams + 1
+            sent = self.reverse_target_dict[23] #use VocabID of 23 for the id which is going to be replaced by full vocab query
+            beam.reverse()
+            ngram_length_sofar = 1
+            for vocabID in beam:
+                sent = sent + " " + self.reverse_target_dict[vocabID]
+                ngram_length_sofar = ngram_length_sofar + 1
+                if ngram_length_sofar == self.ngram_order:
+                    break
+            while ngram_length_sofar < self.ngram_order:
+                ngram_length_sofar = ngram_length_sofar + 1
+                sent = sent + " " + self.reverse_target_dict[self.BoS]
+            tmpfile.write(sent + "\n")
+        tmpfile.close()
+        #sentence length is 1 because we only do 1 ngram per sentence
+        return self.gLM.processBatch(tmp_file, self.n_words_target, 1, nonempty_beams)
+
     #This is how we clear the cMemory taken by all existing ndarrays
     def clearMemory(self):
         """Calls a C function to clear the memory used from all arrays thus far"""
@@ -157,3 +183,10 @@ if __name__ == '__main__':
          '/tmp/dictfile', 2900, 0)
     scores = ngrams.getScoresForBatch(target_padded, '/tmp/tmpngrams')
     #Don't forget to clear memory after use!
+
+    #Test2: beams
+    beam1 = [[23, 15, 17], [78, 14, 32], [17,15,16], [], []]
+    beam2 = [[23, 15, 17, 19, 278], [78, 14, 32, 35, 2008], [17, 15, 16, 195, 11], [], []]
+
+    scores_beam1 = ngrams.getScoresForNgrams(beam1, '/tmp/tmpngramsbeam1')
+    scores_beam2 = ngrams.getScoresForNgrams(beam2, '/tmp/tmpngramsbeam2')
