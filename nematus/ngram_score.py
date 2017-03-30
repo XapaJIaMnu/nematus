@@ -160,8 +160,12 @@ class NgramMatrixFactory:
                 sent = sent + " " + self.reverse_target_dict[self.BoS]
             tmpfile.write(sent + "\n")
         tmpfile.close()
+        #At the start of sentence we just need to return the identity matrix
+        if nonempty_beams == 0:
+            return np.ones(shape=(len(beams), self.n_words_target)).astype('float32')
+        else:
         #sentence length is 1 because we only do 1 ngram per sentence
-        return self.gLM.processBatch(tmp_file, self.n_words_target, 1, nonempty_beams)
+            return self.gLM.processBatch(tmp_file, self.n_words_target, 1, nonempty_beams)
 
     #This is how we clear the cMemory taken by all existing ndarrays
     def clearMemory(self):
