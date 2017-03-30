@@ -13,7 +13,7 @@ from multiprocessing import Process, Queue
 from util import load_dict, load_config
 from compat import fill_options
 from hypgraph import HypGraphRenderer
-import ngram_score
+from ngram_score import NgramMatrixFactory
 
 def translate_model(queue, rqueue, pid, models, options, k, normalize, verbose, nbest, return_alignment, suppress_unk, return_hyp_graph, ngrams_engine):
 
