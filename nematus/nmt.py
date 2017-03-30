@@ -409,6 +409,9 @@ def build_sampler(tparams, options, use_noise, trng, return_alignment=False):
     y = tensor.vector('y_sampler', dtype='int64')
     init_state = tensor.matrix('init_state', dtype='float32')
 
+    # ngram_scores
+    ngram_scores = tensor.matrix('ngram_scores', dtype='float32')
+
     # if it's the first word, emb should be all zero and it is indicated by -1
     emb = tensor.switch(y[:, None] < 0,
                         tensor.alloc(0., 1, tparams['Wemb_dec'].shape[1]),
