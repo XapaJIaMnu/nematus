@@ -44,10 +44,10 @@ def translate_model(queue, rqueue, pid, models, options, k, normalize, verbose, 
     def _translate(seq):
         # sample given an input sequence and obtain scores
         sample, score, word_probs, alignment, hyp_graph = gen_sample(fs_init, fs_next,
-                                   numpy.array(seq).T.reshape([len(seq[0]), len(seq), 1], ngrams_engine=ngrams_engine),
+                                   numpy.array(seq).T.reshape([len(seq[0]), len(seq), 1]),
                                    trng=trng, k=k, maxlen=200,
                                    stochastic=False, argmax=False, return_alignment=return_alignment,
-                                   suppress_unk=suppress_unk, return_hyp_graph=return_hyp_graph)
+                                   suppress_unk=suppress_unk, return_hyp_graph=return_hyp_graph, ngrams_engine=ngrams_engine)
 
         # normalize scores according to sequence lengths
         if normalize:
