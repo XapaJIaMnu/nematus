@@ -838,7 +838,7 @@ def train(dim_word=100,  # word vector dimensionality
     if use_ngram_scoring:
         print("Creating ngram scoring engine using gLM...")
         DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
-        ngrams_engine = NgramMatrixFactory(dictionaries[1], ngram_order, n_words)
+        ngrams_engine = NgramMatrixFactory(dictionaries[-1], ngram_order, n_words)
         ngrams_engine.dumpVocab(DICT_TMP_FILE)  
         ngrams_engine.initGLM(glm_lib_location, ngram_lm_location, DICT_TMP_FILE, ngram_lm_gpu_memory_usage, ngram_lm_gpu_device_id)
     
@@ -1065,7 +1065,8 @@ def train(dim_word=100,  # word vector dimensionality
                                                stochastic=stochastic,
                                                argmax=False,
                                                suppress_unk=False,
-                                               return_hyp_graph=False)
+                                               return_hyp_graph=False,
+                                               ngrams_engine=ngrams_engine)
                     print 'Source ', jj, ': ',
                     for pos in range(x.shape[1]):
                         if x[0, pos, jj] == 0:
