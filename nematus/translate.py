@@ -13,8 +13,7 @@ from multiprocessing import Process, Queue
 from util import load_dict, load_config
 from compat import fill_options
 from hypgraph import HypGraphRenderer
-
-ngrams_engine = None
+import ngram_score
 
 def translate_model(queue, rqueue, pid, models, options, k, normalize, verbose, nbest, return_alignment, suppress_unk, return_hyp_graph, ngrams_engine):
 
