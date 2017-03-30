@@ -536,7 +536,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             target_ngram_scores = None
             if ngrams_engine is not None:
                 ngrams_engine.clearMemory() #Clear the memory used by the previous batch.
-                target_ngram_scores = ngrams_engine.getScoresForBatch(hyp_samples, '/tmp/tmpngrams')
+                target_ngram_scores = ngrams_engine.getScoresForNgrams(hyp_samples, '/tmp/tmpngrams')
             ctx = numpy.tile(ctx0[i], [live_k, 1])
             inps = [next_w, ctx, next_state[i], target_ngram_scores]
             ret = f_next[i](*inps)
