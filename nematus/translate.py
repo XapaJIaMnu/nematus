@@ -13,9 +13,9 @@ from multiprocessing import Process, Queue
 from util import load_dict, load_config
 from compat import fill_options
 from hypgraph import HypGraphRenderer
+from ngram_score import NgramMatrixFactory
 
-
-def translate_model(queue, rqueue, pid, models, options, k, normalize, verbose, nbest, return_alignment, suppress_unk, return_hyp_graph):
+def translate_model(queue, rqueue, pid, models, options, k, normalize, verbose, nbest, return_alignment, suppress_unk, return_hyp_graph, ngrams_engine):
 
     from theano_util import (load_params, init_theano_params)
     from nmt import (build_sampler, gen_sample, init_params)
@@ -47,7 +47,7 @@ def translate_model(queue, rqueue, pid, models, options, k, normalize, verbose, 
                                    numpy.array(seq).T.reshape([len(seq[0]), len(seq), 1]),
                                    trng=trng, k=k, maxlen=200,
                                    stochastic=False, argmax=False, return_alignment=return_alignment,
-                                   suppress_unk=suppress_unk, return_hyp_graph=return_hyp_graph)
+                                   suppress_unk=suppress_unk, return_hyp_graph=return_hyp_graph, ngrams_engine=ngrams_engine)
 
         # normalize scores according to sequence lengths
         if normalize:
@@ -101,7 +101,9 @@ def print_matrices(mm, file):
 
 
 def main(models, source_file, saveto, save_alignment=None, k=5,
-         normalize=False, n_process=5, chr_level=False, verbose=False, nbest=False, suppress_unk=False, a_json=False, print_word_probabilities=False, return_hyp_graph=False):
+         normalize=False, n_process=5, chr_level=False, verbose=False, nbest=False, suppress_unk=False, a_json=False, print_word_probabilities=False,
+          return_hyp_graph=False, use_ngram_scoring=False, ngram_order=5, glm_lib_location="", ngram_lm_location="",
+         ngram_lm_gpu_memory_usage=1000, ngram_lm_gpu_device_id=0):
     # load model model_options
     options = []
     for model in models:
@@ -139,6 +141,13 @@ def main(models, source_file, saveto, save_alignment=None, k=5,
     word_idict_trg[0] = '<eos>'
     word_idict_trg[1] = 'UNK'
 
+    ngrams_engine = None
+    if use_ngram_scoring:
+        DICT_TMP_FILE = "/tmp/dictfile" #@TODO variable
+        ngrams_engine = NgramMatrixFactory(dictionary_target, ngram_order, options[0]['n_words'])
+        ngrams_engine.dumpVocab(DICT_TMP_FILE)
+        ngrams_engine.initGLM(glm_lib_location, ngram_lm_location, DICT_TMP_FILE, ngram_lm_gpu_memory_usage, ngram_lm_gpu_device_id)
+
     # create input and output queues for processes
     queue = Queue()
     rqueue = Queue()
@@ -146,7 +155,7 @@ def main(models, source_file, saveto, save_alignment=None, k=5,
     for midx in xrange(n_process):
         processes[midx] = Process(
             target=translate_model,
-            args=(queue, rqueue, midx, models, options, k, normalize, verbose, nbest, save_alignment is not None, suppress_unk, return_hyp_graph))
+            args=(queue, rqueue, midx, models, options, k, normalize, verbose, nbest, save_alignment is not None, suppress_unk, return_hyp_graph, ngrams_engine))
         processes[midx].start()
 
     # utility function
@@ -274,10 +283,24 @@ if __name__ == "__main__":
     parser.add_argument('--suppress-unk', action="store_true", help="Suppress hypotheses containing UNK.")
     parser.add_argument('--print-word-probabilities', '-wp',action="store_true", help="Print probabilities of each word")
     parser.add_argument('--search_graph', '-sg', help="Output file for search graph rendered as PNG image")
+    parser.add_argument('--use_ngram_scoring', action='store_true',
+                         help='enable ngram scoring of the softmax layer.')
+    parser.add_argument('--ngram_order', type=int, default=6, metavar='INT',
+                         help='ngram order of ngram scoring engine. Only effective if use_ngram_scoring is set')
+    parser.add_argument('--glm_lib_location', type=str, default='/home/s1031254/gLM/release_build/lib', metavar='PATH',
+                         help='path to the gLM python library.')
+    parser.add_argument('--ngram_lm_location', type=str, default='/mnt/gna0/nbogoych/de_en_wmt16/bpe_sents_4_500k.glm/', metavar='PATH',
+                         help='location of the ngram language model.')
+    parser.add_argument('--ngram_lm_gpu_memory_usage', type=int, default=900, metavar='INT',
+                         help='memory usage allowance (in MB) of the GPU ngram language model')
+    parser.add_argument('--ngram_lm_gpu_device_id', type=int, default=0, metavar='INT',
+                         help='GPU device to be used for the ngram language model only.')
 
     args = parser.parse_args()
 
     main(args.models, args.input,
          args.output, k=args.k, normalize=args.n, n_process=args.p,
          chr_level=args.c, verbose=args.v, nbest=args.n_best, suppress_unk=args.suppress_unk, 
-         print_word_probabilities = args.print_word_probabilities, save_alignment=args.output_alignment, a_json=args.json_alignment, return_hyp_graph=args.search_graph)
+         print_word_probabilities = args.print_word_probabilities, save_alignment=args.output_alignment, a_json=args.json_alignment, return_hyp_graph=args.search_graph,
+         use_ngram_scoring=args.use_ngram_scoring, ngram_order=args.ngram_order, glm_lib_location=args.glm_lib_location, ngram_lm_location=args.ngram_lm_location,
+         ngram_lm_gpu_memory_usage=args.ngram_lm_gpu_memory_usage, ngram_lm_gpu_device_id=args.ngram_lm_gpu_device_id)

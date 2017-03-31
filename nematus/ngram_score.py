@@ -141,12 +141,22 @@ class NgramMatrixFactory:
         """We get a beams of translated up to this moment words and we are figuring out what the next one should be.
         All we really need to do at this point is take the last n-1 words (reversed) and pad them if necessary. Since our LM
         code expects n words, we should put the nth word to be anything, because we'd get all possible vocab items."""
-        tmpfile = open(tmp_file, "w")
         nonempty_beams = 0
         for beam in beams:
             if beam == []:
                 continue
-            nonempty_beams = nonempty_beams + 1
+            else:
+                nonempty_beams = nonempty_beams + 1
+        if nonempty_beams == 0:
+            #At the start of sentence we just need to return the probability of any word given BoS
+            for i in range(len(beams)):
+                beams[i].append(self.BoS)
+            nonempty_beams = len(beams)
+
+        tmpfile = open(tmp_file, "w")
+        for beam in beams:
+            if beam == []:
+                continue
             sent = self.reverse_target_dict[23] #use VocabID of 23 for the id which is going to be replaced by full vocab query
             beam.reverse()
             ngram_length_sofar = 1
@@ -160,6 +170,7 @@ class NgramMatrixFactory:
                 sent = sent + " " + self.reverse_target_dict[self.BoS]
             tmpfile.write(sent + "\n")
         tmpfile.close()
+
         #sentence length is 1 because we only do 1 ngram per sentence
         return self.gLM.processBatch(tmp_file, self.n_words_target, 1, nonempty_beams)
 
@@ -187,6 +198,8 @@ if __name__ == '__main__':
     #Test2: beams
     beam1 = [[23, 15, 17], [78, 14, 32], [17,15,16], [], []]
     beam2 = [[23, 15, 17, 19, 278], [78, 14, 32, 35, 2008], [17, 15, 16, 195, 11], [], []]
+    beam3 = [[],[],[],[],[]]
 
     scores_beam1 = ngrams.getScoresForNgrams(beam1, '/tmp/tmpngramsbeam1')
     scores_beam2 = ngrams.getScoresForNgrams(beam2, '/tmp/tmpngramsbeam2')
+    scores_beam3 = ngrams.getScoresForNgrams(beam3, '/tmp/tmpngramsbeam3')
